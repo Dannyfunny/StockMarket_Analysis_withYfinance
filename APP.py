@@ -154,3 +154,5 @@ if st.button("Run Analysis"):
             st.balloons()
             st.write("🚀 Hope you make the money you desire, Hustler!")
         else:
+            st.write("💡 Try other stocks or date ranges!")
+
