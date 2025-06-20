@@ -30,11 +30,11 @@ def plot_candlestick(data, title="Candlestick Chart"):
 def intraday_analysis(ticker):
     st.subheader("📊 Intraday Analysis (5-minute intervals)")
     
-    st.warning("⚠️ Intraday data is only available for the latest trading day. We’ll fetch the most recent available.")
+    st.warning("⚠️ Intraday data is only available for the latest trading day.")
     data = yf.download(ticker, period="1d", interval="5m")
 
     if data.empty or "Close" not in data.columns:
-        st.error("No intraday data available. Market may be closed or data may be restricted.")
+        st.error("No intraday data available. Market may be closed or data restricted.")
         return
 
     st.line_chart(data['Close'])
@@ -70,7 +70,7 @@ def short_term_analysis(ticker, start, end):
     ax.legend()
     st.pyplot(fig)
 
-    # ✅ FIXED RSI calculation
+    # RSI calculation
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
@@ -109,12 +109,17 @@ def long_term_analysis(ticker, start, end):
     ax.legend()
     st.pyplot(fig)
 
-    # CAGR
-    start_price = data['Close'].iloc[0]
-    end_price = data['Close'].iloc[-1]
-    years = (data.index[-1] - data.index[0]).days / 365
-    cagr = ((end_price / start_price) ** (1 / years)) - 1
-    st.write(f"📈 CAGR: **{cagr:.2%}** over {years:.2f} years")
+    try:
+        start_price = data['Close'].iloc[0]
+        end_price = data['Close'].iloc[-1]
+        years = (data.index[-1] - data.index[0]).days / 365.0
+        if years > 0:
+            cagr = ((end_price / start_price) ** (1 / years)) - 1
+            st.write(f"📈 CAGR: **{cagr:.2%}** over {years:.2f} years")
+        else:
+            st.warning("⚠️ Insufficient duration for CAGR calculation.")
+    except Exception as e:
+        st.warning(f"⚠️ Unable to calculate CAGR: {e}")
 
     # Beta vs NIFTY
     index_data = get_data('^NSEI', start, end, '1d')
@@ -126,7 +131,7 @@ def long_term_analysis(ticker, start, end):
         beta = cov_matrix.iloc[0, 1] / cov_matrix.iloc[1, 1]
         st.write(f"📎 Beta vs NIFTY: **{beta:.2f}**")
     else:
-        st.warning("Index data unavailable for beta calculation.")
+        st.warning("⚠️ Could not calculate Beta — missing Index data.")
 
 # ---------------------------- Streamlit UI ---------------------------- #
 st.set_page_config(page_title="Stock Analysis App", layout="wide")
