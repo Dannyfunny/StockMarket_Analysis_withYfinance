@@ -27,15 +27,14 @@ def plot_candlestick(data, title="Candlestick Chart"):
     st.plotly_chart(fig)
 
 # ---------------------------- Analysis Functions ---------------------------- #
-def intraday_analysis(ticker, start, end):
+def intraday_analysis(ticker):
     st.subheader("📊 Intraday Analysis (5-minute intervals)")
-
-    # Always force 1-day data for intraday
-    st.warning("⚠️ Intraday data is only available for the last 7 days. For best results, the latest market day is auto-selected.")
+    
+    st.warning("⚠️ Intraday data is only available for the latest trading day. We’ll fetch the most recent available.")
     data = yf.download(ticker, period="1d", interval="5m")
 
     if data.empty or "Close" not in data.columns:
-        st.error("No intraday data available. Market may be closed or data is restricted.")
+        st.error("No intraday data available. Market may be closed or data may be restricted.")
         return
 
     st.line_chart(data['Close'])
@@ -51,7 +50,6 @@ def intraday_analysis(ticker, start, end):
     ax.legend()
     st.pyplot(fig)
 
-
 def short_term_analysis(ticker, start, end):
     st.subheader("📈 Short-Term Analysis (Daily)")
     data = get_data(ticker, start, end, '1d')
@@ -59,7 +57,7 @@ def short_term_analysis(ticker, start, end):
         st.error("⚠️ No short-term data available.")
         return
 
-    st.line_chart(data['Close'], use_container_width=True)
+    st.line_chart(data['Close'])
 
     data['SMA_10'] = data['Close'].rolling(window=10).mean()
     data['SMA_20'] = data['Close'].rolling(window=20).mean()
@@ -72,11 +70,12 @@ def short_term_analysis(ticker, start, end):
     ax.legend()
     st.pyplot(fig)
 
+    # ✅ FIXED RSI calculation
     delta = data['Close'].diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(14).mean()
-    avg_loss = pd.Series(loss).rolling(14).mean()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(14).mean()
+    avg_loss = loss.rolling(14).mean()
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
 
@@ -95,7 +94,7 @@ def long_term_analysis(ticker, start, end):
         st.error("⚠️ No long-term data available.")
         return
 
-    st.line_chart(data['Close'], use_container_width=True)
+    st.line_chart(data['Close'])
 
     data['SMA_50'] = data['Close'].rolling(window=50).mean()
     data['SMA_100'] = data['Close'].rolling(window=100).mean()
@@ -140,15 +139,16 @@ analysis_type = st.selectbox("Select Analysis Type", ["Intraday", "Short Term", 
 today = date.today()
 min_date = today - timedelta(days=365 * 5)
 
-start_date = st.date_input("Select Start Date", value=today - timedelta(days=90), min_value=min_date, max_value=today)
-end_date = st.date_input("Select End Date", value=today, min_value=min_date, max_value=today)
+if analysis_type != "Intraday":
+    start_date = st.date_input("Select Start Date", value=today - timedelta(days=90), min_value=min_date, max_value=today)
+    end_date = st.date_input("Select End Date", value=today, min_value=min_date, max_value=today)
 
 if st.button("Run Analysis"):
-    if start_date >= end_date:
+    if analysis_type != "Intraday" and start_date >= end_date:
         st.warning("❗ Start date must be earlier than end date.")
     else:
         if analysis_type == "Intraday":
-            intraday_analysis(ticker, start_date, end_date)
+            intraday_analysis(ticker)
         elif analysis_type == "Short Term":
             short_term_analysis(ticker, start_date, end_date)
         elif analysis_type == "Long Term":
@@ -161,4 +161,3 @@ if st.button("Run Analysis"):
             st.write("🚀 Hope you make the money you desire, Hustler!")
         else:
             st.write("💡 Try other stocks or date ranges!")
-
