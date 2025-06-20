@@ -29,12 +29,17 @@ def plot_candlestick(data, title="Candlestick Chart"):
 # ---------------------------- Analysis Functions ---------------------------- #
 def intraday_analysis(ticker, start, end):
     st.subheader("📊 Intraday Analysis (5-minute intervals)")
-    data = get_data(ticker, start, end, '5m')
-    if data.empty:
-        st.error("⚠️ No intraday data available for the selected date range.")
+
+    # Always force 1-day data for intraday
+    st.warning("⚠️ Intraday data is only available for the last 7 days. For best results, the latest market day is auto-selected.")
+    data = yf.download(ticker, period="1d", interval="5m")
+
+    if data.empty or "Close" not in data.columns:
+        st.error("No intraday data available. Market may be closed or data is restricted.")
         return
-    
-    st.line_chart(data['Close'], use_container_width=True)
+
+    st.line_chart(data['Close'])
+
     st.write("📉 Candlestick Chart")
     plot_candlestick(data)
 
@@ -45,6 +50,7 @@ def intraday_analysis(ticker, start, end):
     ax.plot(data.index, data['EMA_9'], label='9-EMA', linestyle='--')
     ax.legend()
     st.pyplot(fig)
+
 
 def short_term_analysis(ticker, start, end):
     st.subheader("📈 Short-Term Analysis (Daily)")
