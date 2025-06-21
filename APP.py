@@ -144,8 +144,14 @@ analysis_type = st.selectbox("Select Analysis Type", ["Intraday", "Short Term", 
 today = date.today()
 min_date = today - timedelta(days=365 * 5)
 
-if analysis_type != "Intraday":
-    start_date = st.date_input("Select Start Date", value=today - timedelta(days=90), min_value=min_date, max_value=today)
+if analysis_type == "Short Term":
+    st.info("📅 Recommended: 30 to 90 days for Short-Term analysis.")
+    start_date = st.date_input("Select Start Date", value=today - timedelta(days=60), min_value=min_date, max_value=today)
+    end_date = st.date_input("Select End Date", value=today, min_value=min_date, max_value=today)
+
+elif analysis_type == "Long Term":
+    st.info("📅 Recommended: 6 months to 5 years for Long-Term analysis.")
+    start_date = st.date_input("Select Start Date", value=today - timedelta(days=730), min_value=min_date, max_value=today)
     end_date = st.date_input("Select End Date", value=today, min_value=min_date, max_value=today)
 
 if st.button("Run Analysis"):
