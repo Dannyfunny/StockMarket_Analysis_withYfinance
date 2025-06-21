@@ -7,12 +7,19 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 
 # ---------------------------- Data Fetch ---------------------------- #
-def get_data(ticker, start, end, interval):
+@st.cache_data(ttl=3600)
+def fetch_data(ticker, start_date, end_date):
     try:
-        df = yf.download(ticker, start=start, end=end, interval=interval)
-        return df.dropna()
-    except:
-        return pd.DataFrame()
+        data = yf.download(ticker, start=start_date, end=end_date)
+        if data.empty:
+            return None
+        data.index = pd.to_datetime(data.index)
+        data.sort_index(inplace=True)
+        data.dropna(inplace=True)
+        return data
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return None
 
 # ---------------------------- Charting Functions ---------------------------- #
 def plot_candlestick(data, title="Candlestick Chart"):
@@ -62,8 +69,8 @@ def intraday_analysis(ticker):
 
 def short_term_analysis(ticker, start, end):
     st.subheader("📈 Short-Term Analysis (Daily)")
-    data = get_data(ticker, start, end, '1d')
-    if data.empty:
+    data = fetch_data(ticker, start, end)
+    if data is None or data.empty:
         st.error("⚠️ No short-term data available.")
         return
 
@@ -96,10 +103,14 @@ def short_term_analysis(ticker, start, end):
     ax2.set_title("RSI Indicator")
     st.pyplot(fig2)
 
+    # Candlestick chart
+    st.subheader(f"📈 {ticker} - Candlestick Chart")
+    plot_candlestick(data)
+
 def long_term_analysis(ticker, start, end):
     st.subheader("📉 Long-Term Analysis (6 months to 5 years)")
-    data = get_data(ticker, start, end, '1d')
-    if data.empty:
+    data = fetch_data(ticker, start, end)
+    if data is None or data.empty:
         st.error("⚠️ No long-term data available.")
         return
 
@@ -129,7 +140,7 @@ def long_term_analysis(ticker, start, end):
     except Exception as e:
         st.warning(f"⚠️ Unable to calculate CAGR: {e}")
 
-    index_data = get_data('^NSEI', start, end, '1d')
+    index_data = fetch_data('^NSEI', start, end)
     combined = pd.concat([data['Close'], index_data['Close']], axis=1)
     combined.columns = ['Stock', 'Index']
     combined.dropna(inplace=True)
@@ -139,6 +150,10 @@ def long_term_analysis(ticker, start, end):
         st.write(f"📎 Beta vs NIFTY: **{beta:.2f}**")
     else:
         st.warning("⚠️ Could not calculate Beta — missing Index data.")
+
+    # Candlestick chart
+    st.subheader(f"📈 {ticker} - Candlestick Chart")
+    plot_candlestick(data)
 
 # ---------------------------- Streamlit UI ---------------------------- #
 st.set_page_config(page_title="Stock Analysis App", layout="wide")
