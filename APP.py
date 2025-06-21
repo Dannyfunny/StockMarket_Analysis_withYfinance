@@ -7,43 +7,34 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 
 # ---------------------------- Data Fetch ---------------------------- #
-@st.cache_data(ttl=3600)
-def fetch_data(ticker, start_date, end_date):
+def get_data(ticker, start, end, interval):
     try:
-        data = yf.download(ticker, start=start_date, end=end_date)
-        if data.empty:
-            return None
-        data.index = pd.to_datetime(data.index)
-        data.sort_index(inplace=True)
-        data.dropna(inplace=True)
-        return data
-    except Exception as e:
-        st.error(f"Error fetching data: {e}")
-        return None
+        df = yf.download(ticker, start=start, end=end, interval=interval)
+        return df.dropna()
+    except:
+        return pd.DataFrame()
 
 # ---------------------------- Charting Functions ---------------------------- #
-def plot_candlestick(data, title="Candlestick Chart"):
-    required_cols = ['Open', 'High', 'Low', 'Close']
+def plot_candlestick(data, ticker):
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
 
-    if not all(col in data.columns for col in required_cols):
-        st.warning("⚠️ Candlestick chart can't be generated. Missing OHLC data.")
+    candlestick_data = data.dropna(subset=['Open', 'High', 'Low', 'Close'])
+
+    if candlestick_data.empty:
+        st.warning("⚠ No valid candlestick data to display.")
         return
 
-    ohlc_data = data[required_cols].dropna()
-
-    if ohlc_data.empty:
-        st.warning("⚠️ Candlestick chart can't be generated due to empty OHLC data.")
-        return
-
-    fig = go.Figure(data=[go.Candlestick(
-        x=ohlc_data.index,
-        open=ohlc_data['Open'],
-        high=ohlc_data['High'],
-        low=ohlc_data['Low'],
-        close=ohlc_data['Close']
-    )])
-    fig.update_layout(title=title, xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig)
+    st.subheader(f"📈 {ticker} - Candlestick Chart")
+    fig = go.Figure(data=[
+        go.Candlestick(x=candlestick_data.index,
+                       open=candlestick_data['Open'],
+                       high=candlestick_data['High'],
+                       low=candlestick_data['Low'],
+                       close=candlestick_data['Close'])
+    ])
+    fig.update_layout(xaxis_rangeslider_visible=False, height=400)
+    st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------- Analysis Functions ---------------------------- #
 def intraday_analysis(ticker):
@@ -56,8 +47,7 @@ def intraday_analysis(ticker):
         return
 
     st.line_chart(data['Close'])
-    st.write("📉 Candlestick Chart")
-    plot_candlestick(data)
+    plot_candlestick(data, ticker)
 
     data['EMA_9'] = data['Close'].ewm(span=9).mean()
     st.write("📈 9-period EMA Overlay")
@@ -69,12 +59,21 @@ def intraday_analysis(ticker):
 
 def short_term_analysis(ticker, start, end):
     st.subheader("📈 Short-Term Analysis (Daily)")
-    data = fetch_data(ticker, start, end)
-    if data is None or data.empty:
-        st.error("⚠️ No short-term data available.")
-        return
 
-    st.line_chart(data['Close'])
+    with st.spinner("📡 Fetching data..."):
+        try:
+            data = yf.download(ticker, start=start, end=end)
+        except Exception as e:
+            st.error(f"⚠ Error fetching data: {e}")
+            st.stop()
+
+    if data.empty:
+        st.error("⚠ No historical data found for this ticker.")
+        st.stop()
+
+    st.write("📊 Sample Data", data.tail())
+    plot_candlestick(data, ticker)
+
     data['SMA_10'] = data['Close'].rolling(window=10).mean()
     data['SMA_20'] = data['Close'].rolling(window=20).mean()
 
@@ -86,7 +85,6 @@ def short_term_analysis(ticker, start, end):
     ax.legend()
     st.pyplot(fig)
 
-    # RSI calculation
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
@@ -103,18 +101,23 @@ def short_term_analysis(ticker, start, end):
     ax2.set_title("RSI Indicator")
     st.pyplot(fig2)
 
-    # Candlestick chart
-    st.subheader(f"📈 {ticker} - Candlestick Chart")
-    plot_candlestick(data)
-
 def long_term_analysis(ticker, start, end):
     st.subheader("📉 Long-Term Analysis (6 months to 5 years)")
-    data = fetch_data(ticker, start, end)
-    if data is None or data.empty:
-        st.error("⚠️ No long-term data available.")
-        return
 
-    st.line_chart(data['Close'])
+    with st.spinner("📡 Fetching data..."):
+        try:
+            data = yf.download(ticker, start=start, end=end)
+        except Exception as e:
+            st.error(f"⚠ Error fetching data: {e}")
+            st.stop()
+
+    if data.empty:
+        st.error("⚠ No historical data found for this ticker.")
+        st.stop()
+
+    st.write("📊 Sample Data", data.tail())
+    plot_candlestick(data, ticker)
+
     data['SMA_50'] = data['Close'].rolling(window=50).mean()
     data['SMA_100'] = data['Close'].rolling(window=100).mean()
     data['SMA_200'] = data['Close'].rolling(window=200).mean()
@@ -140,7 +143,7 @@ def long_term_analysis(ticker, start, end):
     except Exception as e:
         st.warning(f"⚠️ Unable to calculate CAGR: {e}")
 
-    index_data = fetch_data('^NSEI', start, end)
+    index_data = get_data('^NSEI', start, end, '1d')
     combined = pd.concat([data['Close'], index_data['Close']], axis=1)
     combined.columns = ['Stock', 'Index']
     combined.dropna(inplace=True)
@@ -150,10 +153,6 @@ def long_term_analysis(ticker, start, end):
         st.write(f"📎 Beta vs NIFTY: **{beta:.2f}**")
     else:
         st.warning("⚠️ Could not calculate Beta — missing Index data.")
-
-    # Candlestick chart
-    st.subheader(f"📈 {ticker} - Candlestick Chart")
-    plot_candlestick(data)
 
 # ---------------------------- Streamlit UI ---------------------------- #
 st.set_page_config(page_title="Stock Analysis App", layout="wide")
