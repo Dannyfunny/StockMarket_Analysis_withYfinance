@@ -16,12 +16,24 @@ def get_data(ticker, start, end, interval):
 
 # ---------------------------- Charting Functions ---------------------------- #
 def plot_candlestick(data, title="Candlestick Chart"):
+    required_cols = ['Open', 'High', 'Low', 'Close']
+
+    if not all(col in data.columns for col in required_cols):
+        st.warning("⚠️ Candlestick chart can't be generated. Missing OHLC data.")
+        return
+
+    ohlc_data = data[required_cols].dropna()
+
+    if ohlc_data.empty:
+        st.warning("⚠️ Candlestick chart can't be generated due to empty OHLC data.")
+        return
+
     fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
-        open=data['Open'],
-        high=data['High'],
-        low=data['Low'],
-        close=data['Close']
+        x=ohlc_data.index,
+        open=ohlc_data['Open'],
+        high=ohlc_data['High'],
+        low=ohlc_data['Low'],
+        close=ohlc_data['Close']
     )])
     fig.update_layout(title=title, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig)
@@ -29,7 +41,6 @@ def plot_candlestick(data, title="Candlestick Chart"):
 # ---------------------------- Analysis Functions ---------------------------- #
 def intraday_analysis(ticker):
     st.subheader("📊 Intraday Analysis (5-minute intervals)")
-    
     st.warning("⚠️ Intraday data is only available for the latest trading day.")
     data = yf.download(ticker, period="1d", interval="5m")
 
@@ -38,7 +49,6 @@ def intraday_analysis(ticker):
         return
 
     st.line_chart(data['Close'])
-
     st.write("📉 Candlestick Chart")
     plot_candlestick(data)
 
@@ -58,7 +68,6 @@ def short_term_analysis(ticker, start, end):
         return
 
     st.line_chart(data['Close'])
-
     data['SMA_10'] = data['Close'].rolling(window=10).mean()
     data['SMA_20'] = data['Close'].rolling(window=20).mean()
 
@@ -95,7 +104,6 @@ def long_term_analysis(ticker, start, end):
         return
 
     st.line_chart(data['Close'])
-
     data['SMA_50'] = data['Close'].rolling(window=50).mean()
     data['SMA_100'] = data['Close'].rolling(window=100).mean()
     data['SMA_200'] = data['Close'].rolling(window=200).mean()
@@ -121,7 +129,6 @@ def long_term_analysis(ticker, start, end):
     except Exception as e:
         st.warning(f"⚠️ Unable to calculate CAGR: {e}")
 
-    # Beta vs NIFTY
     index_data = get_data('^NSEI', start, end, '1d')
     combined = pd.concat([data['Close'], index_data['Close']], axis=1)
     combined.columns = ['Stock', 'Index']
